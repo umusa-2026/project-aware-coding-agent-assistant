@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# Local and private content
+important_conversations/
+installed_ollama_key_*.rtfd/
+
+# Real user data
+data/*
+!data/sample/
+!data/sample/**

@@ -13,12 +13,13 @@ def _clean_heading(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _make_section_id(relative_path: str, heading_hierarchy: list[str]) -> str:
-    payload = "|".join([relative_path, *heading_hierarchy])
+def _make_section_id(relative_path: str, heading_hierarchy: list[str], occurrence: int = 1) -> str:
+    # Include occurrence number in the payload to handle repeated headings
+    payload = "|".join([relative_path, *heading_hierarchy]) + f"|occurrence:{occurrence}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
-def parse_markdown_sections(path: str | Path) -> list[SectionRecord]:
+def parse_markdown_sections(path: str | Path, corpus_root: Path | None = None) -> list[SectionRecord]:
     file_path = Path(path)
     text = file_path.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -28,6 +29,9 @@ def parse_markdown_sections(path: str | Path) -> list[SectionRecord]:
     current_title: str | None = None
     current_lines: list[str] = []
     current_start = 1
+    
+    # Track heading occurrences within a file to handle repeated headings
+    heading_counts: dict[tuple[str, ...], int] = {}
 
     def flush_section(end_line: int) -> None:
         nonlocal current_title, current_lines, heading_stack
@@ -35,8 +39,19 @@ def parse_markdown_sections(path: str | Path) -> list[SectionRecord]:
             return
         heading_hierarchy = list(heading_stack)
         section_text = "\n".join(current_lines).strip()
-        relative_path = file_path.name
-        section_id = _make_section_id(relative_path, heading_hierarchy)
+        
+        # Calculate relative path for ID generation
+        if corpus_root is not None:
+            relative_path = str(file_path.relative_to(corpus_root).as_posix())
+        else:
+            relative_path = file_path.name
+            
+        # Track occurrence of this heading hierarchy in the current file
+        heading_key = tuple(heading_hierarchy)
+        occurrence = heading_counts.get(heading_key, 0) + 1
+        heading_counts[heading_key] = occurrence
+        
+        section_id = _make_section_id(relative_path, heading_hierarchy, occurrence)
         sections.append(
             SectionRecord(
                 source_path=file_path,
@@ -75,7 +90,14 @@ def parse_markdown_sections(path: str | Path) -> list[SectionRecord]:
 
     if not sections and text.strip():
         fallback_title = file_path.stem.replace("-", " ").replace("_", " ").strip() or file_path.name
-        section_id = _make_section_id(file_path.name, [fallback_title])
+        
+        # Calculate relative path for ID generation
+        if corpus_root is not None:
+            relative_path = str(file_path.relative_to(corpus_root).as_posix())
+        else:
+            relative_path = file_path.name
+            
+        section_id = _make_section_id(relative_path, [fallback_title], 1)
         sections.append(
             SectionRecord(
                 source_path=file_path,

@@ -9,13 +9,62 @@ from .models import QueryResult, SectionRecord
 
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)?")
 
+STOP_WORDS = frozenset({
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "was",
+    "were",
+    "with",
+})
+
+MIN_QUERY_COVERAGE = 0.6
 
 def _tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(text.lower())
 
+def _meaningful_tokens(text: str) -> list[str]:
+    return [
+        token
+        for token in _tokenize(text)
+        if token not in STOP_WORDS
+    ]
 
-def _score_section(query: str, section: SectionRecord) -> tuple[float, list[str]]:
-    query_tokens = _tokenize(query)
+
+def _contains_token_phrase(
+    tokens: list[str],
+    phrase_tokens: list[str],
+) -> bool:
+    phrase_length = len(phrase_tokens)
+    if phrase_length == 0 or phrase_length > len(tokens):
+        return False
+
+    return any(
+        tokens[start:start + phrase_length] == phrase_tokens
+        for start in range(len(tokens) - phrase_length + 1)
+    )
+
+def _score_section(
+    query: str,
+    section: SectionRecord,
+) -> tuple[float, list[str]]:
+    query_tokens = _meaningful_tokens(query)
     if not query_tokens:
         return 0.0, []
 
@@ -23,38 +72,44 @@ def _score_section(query: str, section: SectionRecord) -> tuple[float, list[str]
         " ".join(section.heading_hierarchy),
         section.section_text,
     ])
-    section_tokens = _tokenize(section_text)
-    section_counter = Counter(section_tokens)
-    combined_tokens = " ".join(section_tokens)
+    section_tokens = _meaningful_tokens(section_text)
+    section_token_set = set(section_tokens)
 
-    title_tokens = _tokenize(" ".join(section.heading_hierarchy))
+    unique_query_terms = set(query_tokens)
+    overlap = unique_query_terms & section_token_set
+    query_coverage = len(overlap) / len(unique_query_terms)
+    if query_coverage < MIN_QUERY_COVERAGE:
+        return 0.0, []
+
+    section_counter = Counter(section_tokens)
+
+    title_tokens = _meaningful_tokens(
+        " ".join(section.heading_hierarchy)
+    )
     title_counter = Counter(title_tokens)
 
     score = 0.0
     matched_terms: list[str] = []
+
     for token in query_tokens:
         if token in section_counter:
             score += section_counter[token] * 2.0
             matched_terms.append(token)
+
         if token in title_counter:
             score += title_counter[token] * 5.0
             if token not in matched_terms:
                 matched_terms.append(token)
 
-    unique_query_terms = set(query_tokens)
-    overlap = unique_query_terms & set(section_tokens)
-    if overlap:
-        score += len(overlap) * 3.0
+    score += len(overlap) * 3.0
 
-    phrase = " ".join(query_tokens)
-    if phrase and phrase in combined_tokens:
+    if _contains_token_phrase(section_tokens, query_tokens):
         score += 10.0
 
-    if len(set(query_tokens) - set(section_tokens)) == 0:
+    if unique_query_terms <= section_token_set:
         score += 2.0
 
     return score, matched_terms
-
 
 def rank_sections(query: str, sections: list[SectionRecord], top_k: int = 3, min_score: float = 2.0) -> list[QueryResult]:
     ranked: list[tuple[float, str, SectionRecord, list[str]]] = []

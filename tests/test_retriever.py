@@ -68,3 +68,24 @@ def test_retrieve_sections_no_match_low_coverage_multi_word(tmp_path: Path):
     results = retrieve_sections("hello world", sections, top_k=3)
 
     assert len(results) == 0
+
+def test_retrieve_sections_rejects_zero_score_with_zero_threshold(
+    tmp_path: Path,
+):
+    root = tmp_path / "corpus"
+    root.mkdir()
+    (root / "document.md").write_text(
+        "# Notes\n"
+        "The quick brown fox.\n",
+        encoding="utf-8",
+    )
+
+    sections = build_section_index(root)
+    results = retrieve_sections(
+        "database migration",
+        sections,
+        top_k=3,
+        min_score=0.0,
+    )
+
+    assert results == []

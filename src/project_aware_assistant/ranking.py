@@ -115,7 +115,7 @@ def rank_sections(query: str, sections: list[SectionRecord], top_k: int = 3, min
     ranked: list[tuple[float, str, SectionRecord, list[str]]] = []
     for section in sections:
         score, matched_terms = _score_section(query, section)
-        if score < min_score:
+        if score <= 0.0 or score < min_score:
             continue
         ranked.append((score, section.section_id, section, matched_terms))
 

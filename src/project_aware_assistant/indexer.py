@@ -17,7 +17,8 @@ def build_section_index(root: str | Path) -> list[SectionRecord]:
     corpus_root = Path(root)
     sections: list[SectionRecord] = []
     for file_path in discover_markdown_files(corpus_root):
-        sections.extend(parse_markdown_sections(file_path))
+        # Pass the corpus root to parse_markdown_sections
+        sections.extend(parse_markdown_sections(file_path, corpus_root))
     return sections
 
 

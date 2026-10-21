@@ -56,8 +56,16 @@ def run_cli(argv: list[str] | None = None) -> int:
         parser.error(f"Root directory does not exist: {root_path}")
 
     payload = build_payload(args.query, root_path, top_k=args.top_k, min_score=args.min_score)
-    output = format_result(payload)
-    print(output)
+    
+    # Check if we should output JSON or formatted text
+    if args.json:
+        # For JSON mode, just print the payload as JSON
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        # For text mode, use the existing format_result function
+        output = format_result(payload)
+        print(output)
+        
     return 0
 
 
